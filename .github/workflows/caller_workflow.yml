@@ -15,10 +15,9 @@ jobs:
     
     steps:
       - name: Trigger Terraform Plan Apply
-        uses: benc-uk/workflow-dispatch@v1
+        uses: peter-evans/repository-dispatch@v1
         with:
-          workflow: .github/workflows/reusable_terraform_plan.yml
-          owner: KudziDave
-          repo: reusable-terraform-plan-apply
-          ref: main
           token: ${{ secrets.PAT_TOKEN }}
+          repository: KudziDave/reusable-terraform-plan-apply
+          event-type: terraform-plan-apply
+          client-payload: '{"ref": "main"}'
