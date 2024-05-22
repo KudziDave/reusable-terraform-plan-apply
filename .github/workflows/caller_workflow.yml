@@ -1,0 +1,22 @@
+name: Trigger Terraform Plan Apply on Push
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ./terraform
+
+jobs:
+  trigger_terraform_pipeline:
+    name: Trigger Terraform Pipeline
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Trigger Terraform Plan Apply
+      uses: srt32/trigger-pipeline-action@v2
+      with:
+        github_token: ${{ secrets.PAT_TOKEN }}
+        repo: KudziDave/reusable-terraform-plan-apply
+        workflow_file: ./.github/workflows/reusable_terraform_plan.yml
+        # You may need to adjust the above values to match your repository and workflow file

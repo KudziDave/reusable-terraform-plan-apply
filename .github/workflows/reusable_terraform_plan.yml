@@ -1,0 +1,45 @@
+name: Terraform Plan Apply
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  terraform:
+    name: Terraform Plan Apply
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        terraform_version: 1.0.0 # You can specify the version you need
+      
+    - name: Terraform Init
+      run: terraform init
+      
+    - name: Terraform Validate
+      run: terraform validate
+      
+    - name: Terraform Plan
+      id: plan
+      run: terraform plan -out=tfplan
+      
+    - name: Apply Terraform changes
+      if: github.event_name == 'push' # You may adjust the condition as per your requirement
+      run: terraform apply tfplan
+      env:
+        TF_CLI_ARGS: "-auto-approve" # Auto-approve flag for non-interactive execution
+      
+    - name: Apply Terraform changes in interactive mode
+      if: github.event_name == 'pull_request' # You may adjust the condition as per your requirement
+      run: terraform apply tfplan
+      env:
+        TF_CLI_ARGS: "" # No auto-approve flag for interactive execution
