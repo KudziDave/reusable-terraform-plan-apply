@@ -26,11 +26,11 @@ jobs:
         curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
         sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
         sudo apt-get update && sudo apt-get install terraform
+
     - name: Initialize Terraform
+      working-directory: terraform/
       run: terraform init
 
-    - name: Deploy with Terraform
-      run: |
-        terraform plan -out=tfplan -input=false
-        terraform apply -input=false tfplan
-
+    - name: Initialize Terraform
+      working-directory: terraform/
+      run: terraform plan
