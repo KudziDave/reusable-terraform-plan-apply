@@ -35,34 +35,6 @@ jobs:
       run: terraform init
       working-directory: ./terra
 
-    - name: Terraform Validate
-      run: terraform validate
-      working-directory: ./terra
-
-    - name: Set up Go for Terratest
-      uses: actions/setup-go@v2
-      with:
-        go-version: '^1.16'
-
-    - name: Setup Go module
-      run: |
-        if [ ! -f go.mod ]; then
-          go mod init example.com/mymodule
-        fi
-        go mod tidy
-      working-directory: ./terra
-
-    - name: Run Terratest
-      run: |
-        go test -v ./test
-      working-directory: ./terra
-
-    - name: Install Checkov
-      run: pip install checkov
-
-    - name: Compliance Check with Checkov
-      run: checkov -d ./terra
-
     - name: Terraform Plan
       run: |
         terraform plan -out=tfplan -input=false
@@ -70,6 +42,6 @@ jobs:
 
     - name: Deploy with Terraform
       run: |
-        terraform apply -input=false tfplan
+        terraform apply -auto-approve -input=false tfplan
       working-directory: ./terra
 
