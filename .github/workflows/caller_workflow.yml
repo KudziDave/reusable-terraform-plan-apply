@@ -19,4 +19,4 @@ jobs:
         github_token: ${{ secrets.PAT_TOKEN }}
         repo: KudziDave/reusable-terraform-plan-apply
         workflow_file: ./.github/workflows/reusable_terraform_plan.yml
-        # You may need to adjust the above values to match your repository and workflow file
+        # You may need to adjust the above values to match your repository and workflow fil
