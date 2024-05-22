@@ -14,10 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Trigger Terraform Plan Apply
-      uses: srt32/trigger-pipeline-action@v2
-      with:
-        github_token: ${{ secrets.PAT_TOKEN }}
-        repo: KudziDave/reusable-terraform-plan-apply
-        workflow_file: ./.github/workflows/reusable_terraform_plan.yml
-        # You may need to adjust the above values to match your repository and workflow fil
+      - name: Trigger Terraform Plan Apply
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: .github/workflows/reusable_terraform_plan.yml
+          owner: KudziDave
+          repo: reusable-terraform-plan-apply
+          ref: main
+          token: ${{ secrets.PAT_TOKEN }}
