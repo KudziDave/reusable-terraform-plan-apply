@@ -1,12 +1,9 @@
-name: Deploy to AWS with Terraform
+name: Reusable Terraform Plan
 
 on:
-  push:
-    branches:
-      - main
-      
-  workflow_dispatch:
-  
+  repository_dispatch:
+    types: [terraform-plan-apply]
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -32,6 +29,6 @@ jobs:
       working-directory: terraform/
       run: terraform init
 
-    - name: Initialize Terraform
+    - name: Plan Terraform
       working-directory: terraform/
       run: terraform plan
