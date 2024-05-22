@@ -5,7 +5,7 @@ on:
     branches:
       - main
   workflow_dispatch:
-
+  
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -26,18 +26,11 @@ jobs:
         curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
         sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
         sudo apt-get update && sudo apt-get install terraform
-
-    - name: Terraform Initialize
+    - name: Initialize Terraform
       run: terraform init
-      working-directory: ./terra
-
-    - name: Terraform Plan
-      run: |
-        terraform plan -out=tfplan -input=false
-      working-directory: ./terra
 
     - name: Deploy with Terraform
       run: |
-        terraform apply -auto-approve -input=false tfplan
-      working-directory: ./terra
+        terraform plan -out=tfplan -input=false
+        terraform apply -input=false tfplan
 
