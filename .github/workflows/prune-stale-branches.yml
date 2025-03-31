@@ -44,10 +44,11 @@ jobs:
             # Check pull requests first
             prs=$(gh pr list --state open --base $branch --json updatedAt,number,title)
             # Determine action based on pull request activity
-            if [ -z "$prs" ] || echo $prs | jq -c '.[] | select(.updatedAt | fromdateiso8601 < (now - 7776000))'; then
-              # Check if branch has had no commits in the last 3 months
-              if [[ $(git log -1 --since="3 months ago" -s origin/$branch) == "" ]]; then
+            if [ -z "$prs" ] || echo $prs | jq -c '.[] | select(.updatedAt | fromdateiso8601 < (now - 60))'; then
+              # Check if branch has had no commits in the last 1 minute
+              if [[ $(git log -1 --since="1 minute ago" -s origin/$branch) == "" ]]; then
                 echo "Would delete $branch due to inactivity"
               fi
             fi
           done
+
