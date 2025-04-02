@@ -97,14 +97,22 @@ jobs:
             elif git show-ref --verify --quiet "refs/tags/do-not-prune/$branch"; then
               reason="Tagged do-not-prune"
             elif [[ $last_commit_timestamp -lt $two_minutes_ago_timestamp ]]; then
-              if [[ "$branch" == "main" ]]; then
+              # 🔐 Recheck protection before deletion
+              protection=$(gh api repos/${{ github.repository }}/branches/$branch/protection --silent 2>/dev/null || true)
+              allow_delete=$(echo "$protection" | jq -r '.allow_deletions.enabled // "true"')
+
+              if [[ "$allow_delete" == "false" ]]; then
+                reason="Deletion protection enabled (rechecked)"
+                status="⏸️ Skipped"
+              elif [[ "$branch" == "main" ]]; then
                 echo "🚨 ERROR: Attempted to delete 'main'. Failing to prevent disaster."
                 exit 1
+              else
+                reason="No commits in last 2 minutes"
+                status="🔥 Deleted"
+                echo "🗑️ Deleting branch: $branch"
+                gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/$branch
               fi
-              reason="No commits in last 2 minutes"
-              status="🔥 Deleted"
-              echo "🗑️ Deleting branch: $branch"
-              gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/$branch
             else
               reason="Active (recent commits)"
             fi
