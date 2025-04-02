@@ -65,9 +65,6 @@ jobs:
           mapfile -t protected < protected-branches.txt
           protected_branches="${protected[*]}"
 
-          # Define explicit never-touch list
-          never_touch=("main")
-
           echo "Branches protected from deletion: ${protected_branches[@]}"
           echo ""
 
@@ -91,18 +88,14 @@ jobs:
             echo ""
             echo "🔍 Checking branch: $branch"
 
-            # Hard lock: never touch main (or others)
-            if printf '%s\n' "${never_touch[@]}" | grep -qx "$branch"; then
+            # 🚨 Hard stop if main is being processed
+            if [[ "$branch" == "main" ]]; then
               reason="Explicitly whitelisted"
               status="⏸️ Skipped"
               printf "| \`%s\` | %s | %s |\n" "$branch" "$status" "$reason"
 
-              # Safety trap if someone enables delete
-              if [[ "$branch" == "main" && "$DRY_RUN" != "true" ]]; then
-                echo "🚨 Attempted to act on 'main' with deletion enabled! Aborting."
-                exit 1
-              fi
-              continue
+              echo "🚨 ERROR: Script attempted to process 'main' for deletion. This is not allowed under any circumstances."
+              exit 1
             fi
 
             last_commit_date=$(git log -1 --format=%aD origin/$branch || echo "Unknown")
@@ -138,4 +131,3 @@ jobs:
             fi
 
             printf "| \`%s\` | %s | %s |\n" "$branch" "$status" "$reason"
-          done
