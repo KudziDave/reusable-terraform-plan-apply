@@ -35,12 +35,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Fetch protected branches
+      - name: Fetch branches protected from deletion
         id: protected
         run: |
-          echo "Fetching protected branches..."
-          gh api repos/${{ github.repository }}/branches \
-            --jq '.[] | select(.protected == true) | .name' > protected-branches.txt
+          echo "Fetching branches with 'deletion protection' enabled..."
+          > protected-branches.txt
+
+          branches=$(gh api repos/${{ github.repository }}/branches --jq '.[].name')
+
+          for branch in $branches; do
+            protection=$(gh api repos/${{ github.repository }}/branches/$branch/protection --silent 2>/dev/null || true)
+            allow_delete=$(echo "$protection" | jq -r '.allow_deletions.enabled // "true"')
+
+            if [[ "$allow_delete" == "false" ]]; then
+              echo "$branch" >> protected-branches.txt
+            fi
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -55,7 +65,8 @@ jobs:
           mapfile -t protected < protected-branches.txt
           protected_branches="${protected[*]}"
 
-          echo "Protected branches: ${protected_branches[@]}"
+          echo "Branches protected from deletion: ${protected_branches[@]}"
+          echo ""
 
           echo "| Branch | Status | Reason |"
           echo "|--------|--------|--------|"
@@ -73,18 +84,18 @@ jobs:
             echo ""
             echo "🔍 Checking branch: $branch"
 
-            last_commit_date=$(git log -1 --format=%aD origin/$branch)
-            last_commit_timestamp=$(date -d "$last_commit_date" +%s)
+            last_commit_date=$(git log -1 --format=%aD origin/$branch || echo "Unknown")
+            last_commit_timestamp=$(date -d "$last_commit_date" +%s 2>/dev/null || echo 0)
 
-            merge_base=$(git merge-base origin/main origin/$branch)
+            merge_base=$(git merge-base origin/main origin/$branch || true)
             first_unique_commit=$(git log origin/$branch --reverse --pretty=format:"%H" --not $merge_base | head -1)
 
             if [ -n "$first_unique_commit" ]; then
               branch_creation_date=$(git show -s --format=%aD $first_unique_commit)
               branch_creation_timestamp=$(date -d "$branch_creation_date" +%s)
             else
-              echo "  ➤ No unique commits found. Skipping deletion for safety."
-              reason="No unique commits, skipping stale check"
+              echo "  ➤ No unique commits found. Skipping stale check for safety."
+              reason="No unique commits"
               printf "| \`%s\` | ⏸️ Skipped | %s |\n" "$branch" "$reason"
               continue
             fi
@@ -96,8 +107,8 @@ jobs:
 
             if [ "$branch" == "main" ]; then
               reason="Main branch"
-            elif echo "$protected_branches" | grep -qw "$branch"; then
-              reason="Protected by GitHub rules"
+            elif echo "${protected_branches[@]}" | grep -qw "$branch"; then
+              reason="Deletion protection enabled"
             elif git show-ref --verify --quiet "refs/tags/do-not-prune/$branch"; then
               reason="Tagged do-not-prune"
             elif [[ $last_commit_timestamp -lt $three_months_ago_timestamp ]] && [[ $branch_creation_timestamp -lt $three_months_ago_timestamp ]]; then
