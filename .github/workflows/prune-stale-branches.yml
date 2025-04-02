@@ -74,10 +74,8 @@ jobs:
           branches=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/)
 
           for raw_branch in $branches; do
-            # Clean up branch name
             branch=$(echo "$raw_branch" | sed 's|^origin/||' | xargs)
 
-            # Skip malformed names
             if [[ -z "$branch" || "$branch" == "origin" ]]; then
               continue
             fi
@@ -131,3 +129,4 @@ jobs:
             fi
 
             printf "| \`%s\` | %s | %s |\n" "$branch" "$status" "$reason"
+          done
