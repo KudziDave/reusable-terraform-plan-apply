@@ -68,15 +68,21 @@ jobs:
             reason=""
             status="⏸️ Skipped"
 
-            # Correctly reference branches and avoid ambiguous arguments
             branch_path="refs/remotes/origin/${branch}"
+            branch_creation_date=$(git log --reverse --format=%aD $branch_path | head -1)
+            last_commit_date=$(git log -1 --since="3 months ago" --format=%aD $branch_path)
+
+            # Convert dates to timestamps
+            branch_creation_timestamp=$(date -d "$branch_creation_date" +%s)
+            three_months_ago_timestamp=$(date -d "3 months ago" +%s)
+
             if [ "$branch" == "main" ]; then
               reason="Main branch"
             elif echo "$protected_branches" | grep -qw "$branch"; then
               reason="Protected by GitHub rules"
             elif git show-ref --verify --quiet "refs/tags/do-not-prune/$branch"; then
               reason="Tagged do-not-prune"
-            elif [[ -z $(git log -1 --since="3 months ago" --format=%aD $branch_path) ]] && [[ $(git log --reverse --format=%aD $branch_path | head -1) -lt $(date -d "3 months ago" +%s) ]]; then
+            elif [[ -z "$last_commit_date" ]] && [[ $branch_creation_timestamp -lt $three_months_ago_timestamp ]]; then
               reason="Stale (no commits in 90d, older than 3 months)"
               status="🚫 Would delete"
             else
@@ -85,3 +91,4 @@ jobs:
 
             printf "| \`%s\` | %s | %s |\n" "$branch" "$status" "$reason"
           done
+
