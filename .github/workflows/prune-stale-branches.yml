@@ -71,17 +71,28 @@ jobs:
             reason=""
             status="⏸️ Skipped"
 
-            branch_path="refs/remotes/origin/${branch}"
-            branch_creation_date=$(git log --reverse --format=%aD $branch_path | head -1)
-            last_commit_date=$(git log -1 --format=%aD $branch_path)
+            echo ""
+            echo "🔍 Checking branch: $branch"
 
-            echo "Branch: $branch"
-            echo "Branch Creation Date: $branch_creation_date"
-            echo "Last Commit Date: $last_commit_date"
+            # Calculate last commit date
+            last_commit_date=$(git log -1 --format=%aD origin/$branch)
+            last_commit_timestamp=$(date -d "$last_commit_date" +%s)
+
+            # Determine "creation date" by finding first unique commit after main divergence
+            merge_base=$(git merge-base origin/main origin/$branch)
+            first_unique_commit=$(git log origin/$branch --reverse --pretty=format:"%H" --not $merge_base | head -1)
+
+            if [ -n "$first_unique_commit" ]; then
+              branch_creation_date=$(git show -s --format=%aD $first_unique_commit)
+            else
+              branch_creation_date=$(git show -s --format=%aD $merge_base)
+            fi
 
             branch_creation_timestamp=$(date -d "$branch_creation_date" +%s)
-            last_commit_timestamp=$(date -d "$last_commit_date" +%s)
             three_months_ago_timestamp=$(date -d "3 months ago" +%s)
+
+            echo "  ➤ Creation date: $branch_creation_date"
+            echo "  ➤ Last commit date: $last_commit_date"
 
             if [ "$branch" == "main" ]; then
               reason="Main branch"
