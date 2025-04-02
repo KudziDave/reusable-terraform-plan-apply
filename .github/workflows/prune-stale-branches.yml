@@ -1,12 +1,7 @@
-name: Cleanup of Stale Branches (Dry Run Only)
+name: Cleanup of Stale Branches (Deletes if no commits in last 2 minutes)
 
 on:
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'Perform a dry run without deleting branches'
-        required: true
-        default: 'true'
   push:
     branches:
       - feature-final-branch
@@ -54,10 +49,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Simulate stale branch cleanup (no deletion)
+      - name: Delete stale branches (no commits in last 2 minutes)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
           set -e
           git fetch --all --prune --tags
@@ -89,35 +83,21 @@ jobs:
             last_commit_date=$(git log -1 --format=%aD origin/$branch || echo "Unknown")
             last_commit_timestamp=$(date -d "$last_commit_date" +%s 2>/dev/null || echo 0)
 
-            merge_base=$(git merge-base origin/main origin/$branch || true)
-            first_unique_commit=$(git log origin/$branch --reverse --pretty=format:"%H" --not $merge_base | head -1)
+            two_minutes_ago_timestamp=$(date -d "2 minutes ago" +%s)
 
-            if [ -n "$first_unique_commit" ]; then
-              branch_creation_date=$(git show -s --format=%aD $first_unique_commit)
-              branch_creation_timestamp=$(date -d "$branch_creation_date" +%s)
-            else
-              echo "  ➤ No unique commits found. Skipping stale check for safety."
-              reason="No unique commits"
-              printf "| \`%s\` | ⏸️ Skipped | %s |\n" "$branch" "$reason"
-              continue
-            fi
-
-            three_months_ago_timestamp=$(date -d "3 months ago" +%s)
-
-            echo "  ➤ Creation date: $branch_creation_date"
             echo "  ➤ Last commit date: $last_commit_date"
 
             if echo "${protected_branches[@]}" | grep -qw "$branch"; then
               reason="Deletion protection enabled"
             elif git show-ref --verify --quiet "refs/tags/do-not-prune/$branch"; then
               reason="Tagged do-not-prune"
-            elif [[ $last_commit_timestamp -lt $three_months_ago_timestamp ]] && [[ $branch_creation_timestamp -lt $three_months_ago_timestamp ]]; then
-              if [[ "$branch" == "main" ]]; then
-                echo "🚨 ERROR: Script determined 'main' is stale and would be deleted. Failing to prevent disaster."
-                exit 1
-              fi
-              reason="Stale (no commits in 90d, older than 3 months)"
-              status="🚫 Would delete"
+            elif [[ "$branch" == "main" ]]; then
+              reason="Main branch"
+            elif [[ $last_commit_timestamp -lt $two_minutes_ago_timestamp ]]; then
+              reason="No commits in last 2 minutes"
+              status="🔥 Deleted"
+              echo "🗑️ Deleting branch: $branch"
+              gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/$branch
             else
               reason="Active (recent commits)"
             fi
