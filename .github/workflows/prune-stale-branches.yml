@@ -65,16 +65,23 @@ jobs:
           mapfile -t protected < protected-branches.txt
           protected_branches="${protected[*]}"
 
+          # Define explicit never-touch list
+          never_touch=("main")
+
           echo "Branches protected from deletion: ${protected_branches[@]}"
           echo ""
 
           echo "| Branch | Status | Reason |"
           echo "|--------|--------|--------|"
 
-          branches=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/ | sed 's|^origin/||')
+          branches=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/)
 
-          for branch in $branches; do
-            if [[ "$branch" == "origin" ]]; then
+          for raw_branch in $branches; do
+            # Clean up branch name
+            branch=$(echo "$raw_branch" | sed 's|^origin/||' | xargs)
+
+            # Skip malformed names
+            if [[ -z "$branch" || "$branch" == "origin" ]]; then
               continue
             fi
 
@@ -83,6 +90,20 @@ jobs:
 
             echo ""
             echo "🔍 Checking branch: $branch"
+
+            # Hard lock: never touch main (or others)
+            if printf '%s\n' "${never_touch[@]}" | grep -qx "$branch"; then
+              reason="Explicitly whitelisted"
+              status="⏸️ Skipped"
+              printf "| \`%s\` | %s | %s |\n" "$branch" "$status" "$reason"
+
+              # Safety trap if someone enables delete
+              if [[ "$branch" == "main" && "$DRY_RUN" != "true" ]]; then
+                echo "🚨 Attempted to act on 'main' with deletion enabled! Aborting."
+                exit 1
+              fi
+              continue
+            fi
 
             last_commit_date=$(git log -1 --format=%aD origin/$branch || echo "Unknown")
             last_commit_timestamp=$(date -d "$last_commit_date" +%s 2>/dev/null || echo 0)
@@ -105,9 +126,7 @@ jobs:
             echo "  ➤ Creation date: $branch_creation_date"
             echo "  ➤ Last commit date: $last_commit_date"
 
-            if [ "$branch" == "main" ]; then
-              reason="Main branch"
-            elif echo "${protected_branches[@]}" | grep -qw "$branch"; then
+            if echo "${protected_branches[@]}" | grep -qw "$branch"; then
               reason="Deletion protection enabled"
             elif git show-ref --verify --quiet "refs/tags/do-not-prune/$branch"; then
               reason="Tagged do-not-prune"
