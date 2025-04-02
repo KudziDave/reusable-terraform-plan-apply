@@ -1,10 +1,10 @@
-name: Cleanup of Stale Branches (Dry Run Only with Summary)
+name: Cleanup of Stale Branches (Dry Run Only)
 
 on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Perform a dry run without deleting branches (true/false)'
+        description: 'Perform a dry run without deleting branches'
         required: true
         default: 'true'
   push:
