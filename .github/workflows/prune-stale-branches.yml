@@ -9,10 +9,10 @@ on:
         default: 'true'
   push:
     branches:
-      - feature-9556-automate-pruning-of-stale-branches
+      - feature-final-branch
   pull_request:
     branches:
-      - feature-9556-automate-pruning-of-stale-branches
+      - feature-final-branch
 
 jobs:
   cleanup:
@@ -77,3 +77,4 @@ jobs:
 
             printf "| \`%s\` | %s | %s |\n" "$branch" "$status" "$reason"
           done
+
