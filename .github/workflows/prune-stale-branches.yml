@@ -83,10 +83,9 @@ jobs:
               branch_creation_date=$(git show -s --format=%aD $first_unique_commit)
               branch_creation_timestamp=$(date -d "$branch_creation_date" +%s)
             else
-              echo "  ➤ No unique commits found. Skipping deletion for safety."
-              reason="No unique commits, skipping stale check"
-              printf "| \`%s\` | ⏸️ Skipped | %s |\n" "$branch" "$reason"
-              continue
+              echo "  ➤ No unique commits found. Using merge-base as fallback."
+              branch_creation_date=$(git show -s --format=%aD $merge_base)
+              branch_creation_timestamp=$(date -d "$branch_creation_date" +%s)
             fi
 
             three_months_ago_timestamp=$(date -d "3 months ago" +%s)
