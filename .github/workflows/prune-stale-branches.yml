@@ -68,14 +68,18 @@ jobs:
             reason=""
             status="⏸️ Skipped"
 
+            # Fetch the date of the first commit on this branch and the last commit date
+            branch_creation_date=$(git log --format=%aD $branch | tail -1)
+            last_commit_date=$(git log -1 --since="3 months ago" --format=%aD origin/"$branch")
+
             if [ "$branch" == "main" ]; then
               reason="Main branch"
             elif echo "$protected_branches" | grep -qw "$branch"; then
               reason="Protected by GitHub rules"
             elif git show-ref --verify --quiet "refs/tags/do-not-prune/$branch"; then
               reason="Tagged do-not-prune"
-            elif [[ $(git log -1 --since="3 months ago" origin/"$branch") == "" ]]; then
-              reason="Stale (no commits in 90d)"
+            elif [[ -z "$last_commit_date" ]] && [[ $(date -d "$branch_creation_date" +%s) -lt $(date -d "3 months ago" +%s) ]]; then
+              reason="Stale (no commits in 90d, older than 3 months)"
               status="🚫 Would delete"
             else
               reason="Active (recent commits)"
@@ -83,3 +87,4 @@ jobs:
 
             printf "| \`%s\` | %s | %s |\n" "$branch" "$status" "$reason"
           done
+
