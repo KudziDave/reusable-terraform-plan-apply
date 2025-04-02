@@ -41,6 +41,8 @@ jobs:
           echo "Fetching protected branches..."
           gh api repos/${{ github.repository }}/branches \
             --jq '.[] | select(.protected == true) | .name' > protected-branches.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Simulate stale branch cleanup (no deletion)
         env:
