@@ -9,6 +9,10 @@ on:
     branches:
       - feature-final-branch
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   cleanup:
     runs-on: ubuntu-latest
@@ -82,18 +86,21 @@ jobs:
 
             last_commit_date=$(git log -1 --format=%aD origin/$branch || echo "Unknown")
             last_commit_timestamp=$(date -d "$last_commit_date" +%s 2>/dev/null || echo 0)
-
             two_minutes_ago_timestamp=$(date -d "2 minutes ago" +%s)
 
             echo "  ➤ Last commit date: $last_commit_date"
 
-            if echo "${protected_branches[@]}" | grep -qw "$branch"; then
+            if [[ "$branch" == "main" ]]; then
+              reason="Main branch"
+            elif echo "${protected_branches[@]}" | grep -qw "$branch"; then
               reason="Deletion protection enabled"
             elif git show-ref --verify --quiet "refs/tags/do-not-prune/$branch"; then
               reason="Tagged do-not-prune"
-            elif [[ "$branch" == "main" ]]; then
-              reason="Main branch"
             elif [[ $last_commit_timestamp -lt $two_minutes_ago_timestamp ]]; then
+              if [[ "$branch" == "main" ]]; then
+                echo "🚨 ERROR: Attempted to delete 'main'. Failing to prevent disaster."
+                exit 1
+              fi
               reason="No commits in last 2 minutes"
               status="🔥 Deleted"
               echo "🗑️ Deleting branch: $branch"
