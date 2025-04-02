@@ -1,3 +1,4 @@
 # reusable-terraform-plan-apply
 
-testm 
+testm push
+
