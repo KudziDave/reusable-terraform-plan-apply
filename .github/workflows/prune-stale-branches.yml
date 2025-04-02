@@ -55,10 +55,13 @@ jobs:
           mapfile -t protected < protected-branches.txt
           protected_branches="${protected[*]}"
 
+          echo "Protected branches: ${protected_branches[@]}"
+
           echo "| Branch | Status | Reason |"
           echo "|--------|--------|--------|"
 
           branches=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/ | sed 's|^origin/||')
+          echo "All branches: $branches"
 
           for branch in $branches; do
             if [[ "$branch" == "origin" ]]; then
@@ -72,12 +75,13 @@ jobs:
             branch_creation_date=$(git log --reverse --format=%aD $branch_path | head -1)
             last_commit_date=$(git log -1 --format=%aD $branch_path)
 
-            # Convert dates to timestamps
+            echo "Branch: $branch"
+            echo "Branch Creation Date: $branch_creation_date"
+            echo "Last Commit Date: $last_commit_date"
+
             branch_creation_timestamp=$(date -d "$branch_creation_date" +%s)
             last_commit_timestamp=$(date -d "$last_commit_date" +%s)
             three_months_ago_timestamp=$(date -d "3 months ago" +%s)
-
-            echo "Debug: Branch $branch - Creation Date: $branch_creation_date, Last Commit Date: $last_commit_date"
 
             if [ "$branch" == "main" ]; then
               reason="Main branch"
