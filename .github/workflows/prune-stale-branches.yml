@@ -97,7 +97,7 @@ jobs:
             elif git show-ref --verify --quiet "refs/tags/do-not-prune/$branch"; then
               reason="Tagged do-not-prune"
             elif [[ $last_commit_timestamp -lt $two_minutes_ago_timestamp ]]; then
-              # 🔐 Recheck protection before deletion
+              # Final recheck before deletion
               protection=$(gh api repos/${{ github.repository }}/branches/$branch/protection --silent 2>/dev/null || true)
               allow_delete=$(echo "$protection" | jq -r '.allow_deletions.enabled // "true"')
 
@@ -111,7 +111,11 @@ jobs:
                 reason="No commits in last 2 minutes"
                 status="🔥 Deleted"
                 echo "🗑️ Deleting branch: $branch"
-                gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/$branch
+                if ! gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/$branch; then
+                  echo "⚠️ WARNING: GitHub refused to delete branch '$branch'. It may be protected."
+                  status="⚠️ Failed"
+                  reason="GitHub API deletion failed (possible protection)"
+                fi
               fi
             else
               reason="Active (recent commits)"
