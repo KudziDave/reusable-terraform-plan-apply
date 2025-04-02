@@ -86,16 +86,6 @@ jobs:
             echo ""
             echo "🔍 Checking branch: $branch"
 
-            # 🚨 Hard stop if main is being processed
-            if [[ "$branch" == "main" ]]; then
-              reason="Explicitly whitelisted"
-              status="⏸️ Skipped"
-              printf "| \`%s\` | %s | %s |\n" "$branch" "$status" "$reason"
-
-              echo "🚨 ERROR: Script attempted to process 'main' for deletion. This is not allowed under any circumstances."
-              exit 1
-            fi
-
             last_commit_date=$(git log -1 --format=%aD origin/$branch || echo "Unknown")
             last_commit_timestamp=$(date -d "$last_commit_date" +%s 2>/dev/null || echo 0)
 
@@ -122,6 +112,10 @@ jobs:
             elif git show-ref --verify --quiet "refs/tags/do-not-prune/$branch"; then
               reason="Tagged do-not-prune"
             elif [[ $last_commit_timestamp -lt $three_months_ago_timestamp ]] && [[ $branch_creation_timestamp -lt $three_months_ago_timestamp ]]; then
+              if [[ "$branch" == "main" ]]; then
+                echo "🚨 ERROR: Script determined 'main' is stale and would be deleted. Failing to prevent disaster."
+                exit 1
+              fi
               reason="Stale (no commits in 90d, older than 3 months)"
               status="🚫 Would delete"
             else
