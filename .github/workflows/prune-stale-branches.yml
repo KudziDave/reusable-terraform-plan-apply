@@ -1,4 +1,4 @@
-name: Cleanup of Stale Branches (with Dry Run)
+name: Cleanup of Stale Branches (Dry Run Only with Summary)
 
 on:
   workflow_dispatch:
@@ -9,17 +9,25 @@ on:
         default: 'true'
   push:
     branches:
-      - feature-final-branch  # Trigger on push to this specific branch
+      - feature-9556-automate-pruning-of-stale-branches
   pull_request:
     branches:
-      - feature-final-branch  # Trigger on pull request to this specific branch
+      - feature-9556-automate-pruning-of-stale-branches
 
 jobs:
   cleanup:
     runs-on: ubuntu-latest
+
     steps:
+      - name: Ensure CLI tools are installed
+        run: |
+          command -v gh >/dev/null || (echo "❌ GitHub CLI (gh) is not installed" && exit 1)
+          command -v jq >/dev/null || (echo "❌ jq is not installed" && exit 1)
+
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup GitHub CLI
         run: |
@@ -27,27 +35,45 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Delete or Log stale branches and associated PRs
+      - name: Fetch protected branches
+        id: protected
+        run: |
+          echo "Fetching protected branches..."
+          gh api repos/${{ github.repository }}/branches \
+            --jq '.[] | select(.protected == true) | .name' > protected-branches.txt
+
+      - name: Simulate stale branch cleanup (no deletion)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
-          git fetch --prune
-          branches=$(git branch -r | grep -v "^\* main$" | grep -v main | sed 's/origin\///')
+          set -e
+          git fetch --all --prune --tags
+
+          mapfile -t protected < protected-branches.txt
+          protected_branches="${protected[*]}"
+
+          echo "| Branch | Status | Reason |"
+          echo "|--------|--------|--------|"
+
+          branches=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/ | sed 's|origin/||')
+
           for branch in $branches; do
-            # Skip branches with 'long-term' in their name
-            if [[ "$branch" =~ long-term ]]; then
-              echo "Skipping pruning for long-term branch: $branch"
-              continue
+            reason=""
+            status="⏸️ Skipped"
+
+            if [ "$branch" == "main" ]; then
+              reason="Main branch"
+            elif echo "$protected_branches" | grep -qw "$branch"; then
+              reason="Protected by GitHub rules"
+            elif git show-ref --verify --quiet "refs/tags/do-not-prune/$branch"; then
+              reason="Tagged do-not-prune"
+            elif [[ $(git log -1 --since="3 months ago" origin/"$branch") == "" ]]; then
+              reason="Stale (no commits in 90d)"
+              status="🚫 Would delete"
+            else
+              reason="Active (recent commits)"
             fi
-           
-            # Check pull requests first
-            prs=$(gh pr list --state open --base $branch --json updatedAt,number,title)
-            # Determine action based on pull request activity
-            if [ -z "$prs" ] || echo $prs | jq -c '.[] | select(.updatedAt | fromdateiso8601 < (now - 7776000))'; then
-              # Check if branch has had no commits in the last 3 months
-              if [[ $(git log -1 --since="3 months ago" -s origin/$branch) == "" ]]; then
-                echo "Would delete $branch due to inactivity"
-              fi
-            fi
+
+            printf "| \`%s\` | %s | %s |\n" "$branch" "$status" "$reason"
           done
