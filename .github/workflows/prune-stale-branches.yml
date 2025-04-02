@@ -1,94 +1,52 @@
-name: Cleanup of Stale Branches (Dry Run Only with Summary)
+- name: Simulate stale branch cleanup (no deletion)
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  DRY_RUN: ${{ github.event.inputs.dry_run }}
+run: |
+  set -e
+  git fetch --all --prune --tags
 
-on:
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'Perform a dry run without deleting branches (true/false)'
-        required: true
-        default: 'true'
-  push:
-    branches:
-      - feature-final-branch
-  pull_request:
-    branches:
-      - feature-final-branch
+  mapfile -t protected < protected-branches.txt
+  protected_branches="${protected[*]}"
 
-jobs:
-  cleanup:
-    runs-on: ubuntu-latest
+  echo "| Branch | Status | Reason |"
+  echo "|--------|--------|--------|"
 
-    steps:
-      - name: Ensure CLI tools are installed
-        run: |
-          command -v gh >/dev/null || (echo "❌ GitHub CLI (gh) is not installed" && exit 1)
-          command -v jq >/dev/null || (echo "❌ jq is not installed" && exit 1)
+  branches=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/ | sed 's|^origin/||')
 
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  for branch in $branches; do
+    if [[ "$branch" == "origin" ]]; then
+      continue  # Skip incorrect or malformed branch names
+    fi
 
-      - name: Setup GitHub CLI
-        run: |
-          gh auth setup-git
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    reason=""
+    status="⏸️ Skipped"
 
-      - name: Fetch protected branches
-        id: protected
-        run: |
-          echo "Fetching protected branches..."
-          gh api repos/${{ github.repository }}/branches \
-            --jq '.[] | select(.protected == true) | .name' > protected-branches.txt
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    branch_path="refs/remotes/origin/${branch}"
+    branch_creation_date=$(git log --reverse --format=%aD $branch_path | head -1)
+    last_commit_date=$(git log -1 --format=%aD $branch_path)
 
-      - name: Simulate stale branch cleanup (no deletion)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DRY_RUN: ${{ github.event.inputs.dry_run }}
-        run: |
-          set -e
-          git fetch --all --prune --tags
+    # Convert dates to timestamps
+    branch_creation_timestamp=$(date -d "$branch_creation_date" +%s)
+    last_commit_timestamp=$(date -d "$last_commit_date" +%s)
+    three_months_ago_timestamp=$(date -d "3 months ago" +%s)
 
-          mapfile -t protected < protected-branches.txt
-          protected_branches="${protected[*]}"
+    echo "Debug: Branch $branch - Creation Date: $branch_creation_date, Last Commit Date: $last_commit_date"
 
-          echo "| Branch | Status | Reason |"
-          echo "|--------|--------|--------|"
+    if [ "$branch" == "main" ]; then
+      reason="Main branch"
+    elif echo "$protected_branches" | grep -qw "$branch"; then
+      reason="Protected by GitHub rules"
+    elif git show-ref --verify --quiet "refs/tags/do-not-prune/$branch"; then
+      reason="Tagged do-not-prune"
+    elif [[ $last_commit_timestamp -lt $three_months_ago_timestamp ]] && [[ $branch_creation_timestamp -lt $three_months_ago_timestamp ]]; then
+      reason="Stale (no commits in 90d, older than 3 months)"
+      status="🚫 Would delete"
+    else
+      reason="Active (recent commits)"
+    fi
 
-          branches=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/ | sed 's|^origin/||')
+    printf "| \`%s\` | %s | %s |\n" "$branch" "$status" "$reason"
+  done
 
-          for branch in $branches; do
-            if [[ "$branch" == "origin" ]]; then
-              continue  # Skip incorrect or malformed branch names
-            fi
-
-            reason=""
-            status="⏸️ Skipped"
-
-            branch_path="refs/remotes/origin/${branch}"
-            branch_creation_date=$(git log --reverse --format=%aD $branch_path | head -1)
-            last_commit_date=$(git log -1 --since="3 months ago" --format=%aD $branch_path)
-
-            # Convert dates to timestamps
-            branch_creation_timestamp=$(date -d "$branch_creation_date" +%s)
-            three_months_ago_timestamp=$(date -d "3 months ago" +%s)
-
-            if [ "$branch" == "main" ]; then
-              reason="Main branch"
-            elif echo "$protected_branches" | grep -qw "$branch"; then
-              reason="Protected by GitHub rules"
-            elif git show-ref --verify --quiet "refs/tags/do-not-prune/$branch"; then
-              reason="Tagged do-not-prune"
-            elif [[ -z "$last_commit_date" ]] && [[ $branch_creation_timestamp -lt $three_months_ago_timestamp ]]; then
-              reason="Stale (no commits in 90d, older than 3 months)"
-              status="🚫 Would delete"
-            else
-              reason="Active (recent commits)"
-            fi
-
-            printf "| \`%s\` | %s | %s |\n" "$branch" "$status" "$reason"
-          done
 
