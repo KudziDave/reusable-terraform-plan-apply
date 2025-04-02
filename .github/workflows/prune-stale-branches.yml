@@ -61,11 +61,10 @@ jobs:
           echo "|--------|--------|--------|"
 
           branches=$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/ | sed 's|^origin/||')
-          echo "All branches: $branches"
 
           for branch in $branches; do
             if [[ "$branch" == "origin" ]]; then
-              continue  # Skip incorrect or malformed branch names
+              continue
             fi
 
             reason=""
@@ -74,21 +73,22 @@ jobs:
             echo ""
             echo "🔍 Checking branch: $branch"
 
-            # Calculate last commit date
             last_commit_date=$(git log -1 --format=%aD origin/$branch)
             last_commit_timestamp=$(date -d "$last_commit_date" +%s)
 
-            # Determine "creation date" by finding first unique commit after main divergence
             merge_base=$(git merge-base origin/main origin/$branch)
             first_unique_commit=$(git log origin/$branch --reverse --pretty=format:"%H" --not $merge_base | head -1)
 
             if [ -n "$first_unique_commit" ]; then
               branch_creation_date=$(git show -s --format=%aD $first_unique_commit)
+              branch_creation_timestamp=$(date -d "$branch_creation_date" +%s)
             else
-              branch_creation_date=$(git show -s --format=%aD $merge_base)
+              echo "  ➤ No unique commits found. Skipping deletion for safety."
+              reason="No unique commits, skipping stale check"
+              printf "| \`%s\` | ⏸️ Skipped | %s |\n" "$branch" "$reason"
+              continue
             fi
 
-            branch_creation_timestamp=$(date -d "$branch_creation_date" +%s)
             three_months_ago_timestamp=$(date -d "3 months ago" +%s)
 
             echo "  ➤ Creation date: $branch_creation_date"
