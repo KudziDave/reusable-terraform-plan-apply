@@ -1,13 +1,10 @@
 name: Cleanup of Stale Branches (Deletes if no commits in last 2 minutes)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # Manual trigger
   push:
     branches:
-      - feature-final-branch
-  pull_request:
-    branches:
-      - feature-final-branch
+      - feature-final-branch  # Replace with your test branch if needed
 
 permissions:
   contents: write
@@ -15,6 +12,7 @@ permissions:
 
 jobs:
   cleanup:
+    name: Cleanup Stale Branches
     runs-on: ubuntu-latest
 
     steps:
@@ -57,7 +55,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
+          set -eo pipefail
           git fetch --all --prune --tags
 
           mapfile -t protected < protected-branches.txt
@@ -86,7 +84,7 @@ jobs:
 
             last_commit_date=$(git log -1 --format=%aD origin/$branch || echo "Unknown")
             last_commit_timestamp=$(date -d "$last_commit_date" +%s 2>/dev/null || echo 0)
-            two_minutes_ago_timestamp=$(date -d "2 minutes ago" +%s)
+            two_months_ago_timestamp=$(date -d "2 minutes ago" +%s)
 
             echo "  ➤ Last commit date: $last_commit_date"
 
@@ -96,7 +94,7 @@ jobs:
               reason="Deletion protection enabled"
             elif git show-ref --verify --quiet "refs/tags/do-not-prune/$branch"; then
               reason="Tagged do-not-prune"
-            else
+            elif [[ $last_commit_timestamp -lt $two_months_ago_timestamp ]]; then
               merge_base=$(git merge-base origin/main origin/$branch || true)
               first_unique_commit=$(git log origin/$branch --reverse --pretty=format:"%H" --not $merge_base | head -1)
 
@@ -104,36 +102,18 @@ jobs:
                 branch_creation_date=$(git show -s --format=%aD $first_unique_commit)
                 branch_creation_timestamp=$(date -d "$branch_creation_date" +%s)
                 echo "  ➤ Branch creation date: $branch_creation_date"
-              else
-                echo "  ➤ No unique commits found. Skipping age check for safety."
-                reason="No unique commits"
-                printf "| \`%s\` | ⏸️ Skipped | %s |\n" "$branch" "$reason"
-                continue
               fi
 
-              if [[ $last_commit_timestamp -lt $two_minutes_ago_timestamp ]] && [[ $branch_creation_timestamp -lt $two_minutes_ago_timestamp ]]; then
-                protection=$(gh api repos/${{ github.repository }}/branches/$branch/protection --silent 2>/dev/null || true)
-                allow_delete=$(echo "$protection" | jq -r '.allow_deletions.enabled // "true"')
-
-                if [[ "$allow_delete" == "false" ]]; then
-                  reason="Deletion protection enabled (rechecked)"
-                  status="⏸️ Skipped"
-                elif [[ "$branch" == "main" ]]; then
-                  echo "🚨 ERROR: Attempted to delete 'main'. Failing to prevent disaster."
-                  exit 1
-                else
-                  reason="No commits in 2+ minutes, and branch is 2+ minutes old"
-                  status="🔥 Deleted"
-                  echo "🗑️ Deleting branch: $branch"
-                  if ! gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/$branch; then
-                    echo "⚠️ WARNING: GitHub refused to delete branch '$branch'. It may be protected."
-                    status="⚠️ Failed"
-                    reason="GitHub API deletion failed (possible protection)"
-                  fi
-                fi
-              else
-                reason="Active (recent commits or too new)"
+              reason="Deleted (no commits in 2+ minutes)"
+              status="🔥 Deleted"
+              echo "🗑️ Deleting branch: $branch"
+              if ! gh api -X DELETE repos/${{ github.repository }}/git/refs/heads/$branch; then
+                echo "⚠️ WARNING: GitHub refused to delete branch '$branch'. It may be protected."
+                status="⚠️ Failed"
+                reason="GitHub API deletion failed (possible protection)"
               fi
+            else
+              reason="Active (recent commits)"
             fi
 
             printf "| \`%s\` | %s | %s |\n" "$branch" "$status" "$reason"
