@@ -30,9 +30,9 @@ jobs:
           trap '' PIPE
 
           repos=(
-            "org/repo-one"
-            "org/repo-two"
-            "org/repo-three"
+            "feature-final-branch"
+            "moj-3"
+            "unit-tests"
             # Add more repositories here
           )
 
