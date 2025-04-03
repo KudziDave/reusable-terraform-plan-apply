@@ -32,6 +32,8 @@ jobs:
 
           repos=(
             "KudziDave/reusable-terraform-plan-apply"
+            "KudziDave/unit-tests"
+            "KudziDave/JosephRevival"
             # Add more repositories here
           )
 
