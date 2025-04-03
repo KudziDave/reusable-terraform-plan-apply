@@ -30,7 +30,7 @@ jobs:
           trap '' PIPE
 
           repos=(
-            "feature-final-branch"
+            "reusable-terraform-plan-apply"
             "moj-3"
             "unit-tests"
             # Add more repositories here
